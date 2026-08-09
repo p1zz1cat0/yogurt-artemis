@@ -1,5 +1,6 @@
 #import "EAGLContext.h"
 #include "NativeIOTrace.h"
+#include <YoghourtSpatialPresenter.h>
 #define GL_APICALL
 #define GL_APIENTRY
 #include <GLES2/gl2.h>
@@ -8,6 +9,9 @@
 #include <QuartzCore/CAMetalLayer.h>
 #include <dlfcn.h>
 #include <cstdlib>
+#include <cstring>
+#include <memory>
+#include <vector>
 
 #ifndef GL_RGBA8_OES
 #define GL_RGBA8_OES 0x8058
@@ -21,6 +25,11 @@ static GLuint      s_engineFramebuffer = 0;
 static GLuint      s_engineRenderbuffer = 0;
 static GLsizei     s_engineWidth = 0;
 static GLsizei     s_engineHeight = 0;
+static std::unique_ptr<yoghourt_spatial::Presenter> s_spatialPresenter;
+static GLsizei s_spatialWidth = 0;
+static GLsizei s_spatialHeight = 0;
+static std::vector<unsigned char> s_spatialRGBA;
+static std::vector<unsigned char> s_spatialBGRA;
 // Store an unretained opaque pointer: ARC does not permit a strong Objective-C
 // object in a C thread-local slot. EAGLContext is owned by its view.
 static __thread void* s_currentContext = nullptr;
@@ -61,6 +70,91 @@ static GLint s_presentSampler = -1;
 #endif
 
 static void* s_eglHandle = nullptr;
+
+static yoghourt_spatial::ScalerMode spatialScalerMode() {
+    const char* value = getenv("YOGHOURT_ARTEMIS_SPATIAL_SCALER");
+    if (value && strcmp(value, "cunny") == 0) {
+        return yoghourt_spatial::ScalerMode::cuNNy;
+    }
+    if (value && strcmp(value, "cunny+metalfx") == 0) {
+        return yoghourt_spatial::ScalerMode::cuNNyPlusMetalFX;
+    }
+    return yoghourt_spatial::ScalerMode::metalFX;
+}
+
+static bool spatialPresentationRequested() {
+    const char* value = getenv("YOGHOURT_ARTEMIS_SPATIAL_SCALER");
+    return value && value[0] && strcmp(value, "0") != 0;
+}
+
+static bool presentFramebufferWithSpatialScaler(
+    CAMetalLayer* layer,
+    GLuint framebuffer,
+    GLsizei width,
+    GLsizei height
+) {
+    if (!spatialPresentationRequested() || !layer || framebuffer == 0 ||
+        width <= 0 || height <= 0) {
+        return false;
+    }
+
+    const size_t rowBytes = (size_t)width * 4;
+    const size_t byteCount = rowBytes * (size_t)height;
+    s_spatialRGBA.resize(byteCount);
+    s_spatialBGRA.resize(byteCount);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    while (glGetError() != GL_NO_ERROR) {}
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, s_spatialRGBA.data());
+    const GLenum readError = glGetError();
+    if (readError != GL_NO_ERROR) {
+        static bool reportedReadFailure = false;
+        if (!reportedReadFailure) {
+            reportedReadFailure = true;
+            NSLog(@"[SpatialPresenter] Artemis framebuffer readback failed: 0x%x", readError);
+        }
+        return false;
+    }
+
+    // GLES readback is bottom-up RGBA; the shared presenter consumes top-down
+    // BGRA. Convert in one pass while the data is already CPU-resident.
+    for (GLsizei y = 0; y < height; ++y) {
+        const unsigned char* source = s_spatialRGBA.data() +
+            (size_t)(height - 1 - y) * rowBytes;
+        unsigned char* destination = s_spatialBGRA.data() + (size_t)y * rowBytes;
+        for (GLsizei x = 0; x < width; ++x) {
+            destination[x * 4 + 0] = source[x * 4 + 2];
+            destination[x * 4 + 1] = source[x * 4 + 1];
+            destination[x * 4 + 2] = source[x * 4 + 0];
+            destination[x * 4 + 3] = source[x * 4 + 3];
+        }
+    }
+
+    if (!s_spatialPresenter || s_spatialWidth != width || s_spatialHeight != height) {
+        yoghourt_spatial::Options options;
+        options.scaler = spatialScalerMode();
+        options.enableOverlayMask = false;
+        s_spatialPresenter = std::make_unique<yoghourt_spatial::Presenter>(
+            (__bridge void*)layer, width, height, options);
+        s_spatialWidth = width;
+        s_spatialHeight = height;
+        NSLog(@"[SpatialPresenter] Artemis adapter source=%dx%d drawable=%.0fx%.0f scaler=%s readback=cpu",
+              width, height, layer.drawableSize.width, layer.drawableSize.height,
+              getenv("YOGHOURT_ARTEMIS_SPATIAL_SCALER"));
+    }
+    if (!s_spatialPresenter->isActive()) {
+        return false;
+    }
+
+    const yoghourt_spatial::CPUFrame frame = {
+        s_spatialBGRA.data(),
+        width,
+        height,
+        rowBytes,
+        yoghourt_spatial::PixelFormat::bgra8Unorm,
+    };
+    return s_spatialPresenter->present(frame);
+}
 
 static const char* findEGLPath() {
     static const char* paths[] = {
@@ -529,6 +623,13 @@ static bool copyFramebufferToWindow(
     const GLsizei targetHeight = layer
         ? (GLsizei)MAX(1.0, layer.drawableSize.height)
         : sourceHeight;
+    if (presentFramebufferWithSpatialScaler(
+            layer,
+            framebufferToPresent,
+            sourceWidth,
+            sourceHeight)) {
+        return YES;
+    }
     const BOOL needsPresentationCopy =
         framebufferToPresent != 0
         || sourceWidth != targetWidth

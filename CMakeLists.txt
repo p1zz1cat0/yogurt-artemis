@@ -5,6 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "15.6")
 
+set(YOGHOURT_SPATIAL_PRESENTER_DIR "" CACHE PATH
+    "Path to Yoghourt's shared SpatialPresenter sources")
+if(NOT YOGHOURT_SPATIAL_PRESENTER_DIR OR
+   NOT EXISTS "${YOGHOURT_SPATIAL_PRESENTER_DIR}/YoghourtSpatialPresenter.mm")
+    message(FATAL_ERROR
+        "Set YOGHOURT_SPATIAL_PRESENTER_DIR to RuntimeSupport/SpatialPresenter")
+endif()
+
 # ANGLE — GLES2+EGL (Metal backend)
 set(ARTEMIS_SDK_DIR "" CACHE PATH "Directory containing the user-supplied native Artemis SDK libraries")
 if(NOT ARTEMIS_SDK_DIR)
@@ -28,6 +36,7 @@ set(SOURCES
     UICompat.mm
     PlatformStub.mm
     NativeIOTrace.mm
+    "${YOGHOURT_SPATIAL_PRESENTER_DIR}/YoghourtSpatialPresenter.mm"
 )
 
 # Artemis static library (patched for macOS)
@@ -56,6 +65,7 @@ add_dependencies(ArtemisPlayer artemis_static_native_io)
 
 target_include_directories(ArtemisPlayer PRIVATE
     "${CMAKE_SOURCE_DIR}"
+    "${YOGHOURT_SPATIAL_PRESENTER_DIR}"
     "${LIBS_DIR}"
     ${FREETYPE_INCLUDE_DIRS}
 )
@@ -66,6 +76,7 @@ target_link_libraries(ArtemisPlayer
     ANGLE_EGL
     ${FREETYPE_LIBRARIES}
     "-framework Metal"
+    "-framework MetalFX"
     "-framework QuartzCore"
     "-framework AppKit"
     "-framework Foundation"
