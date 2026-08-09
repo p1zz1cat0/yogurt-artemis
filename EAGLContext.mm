@@ -72,7 +72,10 @@ static GLint s_presentSampler = -1;
 static void* s_eglHandle = nullptr;
 
 static yoghourt_spatial::ScalerMode spatialScalerMode() {
-    const char* value = getenv("YOGHOURT_ARTEMIS_SPATIAL_SCALER");
+    const char* value = getenv("YOGHOURT_SPATIAL_SCALER");
+    if (!value || !value[0]) {
+        value = getenv("YOGHOURT_ARTEMIS_SPATIAL_SCALER");
+    }
     if (value && strcmp(value, "cunny") == 0) {
         return yoghourt_spatial::ScalerMode::cuNNy;
     }
@@ -83,7 +86,10 @@ static yoghourt_spatial::ScalerMode spatialScalerMode() {
 }
 
 static bool spatialPresentationRequested() {
-    const char* value = getenv("YOGHOURT_ARTEMIS_SPATIAL_SCALER");
+    const char* value = getenv("YOGHOURT_SPATIAL_SCALER");
+    if (!value || !value[0]) {
+        value = getenv("YOGHOURT_ARTEMIS_SPATIAL_SCALER");
+    }
     return value && value[0] && strcmp(value, "0") != 0;
 }
 
@@ -140,7 +146,7 @@ static bool presentFramebufferWithSpatialScaler(
         s_spatialHeight = height;
         NSLog(@"[SpatialPresenter] Artemis adapter source=%dx%d drawable=%.0fx%.0f scaler=%s readback=cpu",
               width, height, layer.drawableSize.width, layer.drawableSize.height,
-              getenv("YOGHOURT_ARTEMIS_SPATIAL_SCALER"));
+              getenv("YOGHOURT_SPATIAL_SCALER") ?: getenv("YOGHOURT_ARTEMIS_SPATIAL_SCALER"));
     }
     if (!s_spatialPresenter->isActive()) {
         return false;
