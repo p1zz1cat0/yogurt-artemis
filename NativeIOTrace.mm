@@ -4,11 +4,13 @@
 #define GL_APICALL
 #define GL_APIENTRY
 #include <GLES2/gl2.h>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
 #include <execinfo.h>
+#include <limits.h>
 #include <mutex>
 #include <regex>
 #include <sstream>
@@ -61,6 +63,38 @@ std::unordered_map<std::string, std::string>& PlatformTableOverrides() {
 }
 
 NSMutableArray<NSString*>* gPlatformTableTemporaryFiles;
+
+// Signal-safe registry of the temporary table files. std::atexit only runs on
+// clean exit(), so kills (SIGTERM/SIGINT/SIGHUP) used by the launcher would
+// otherwise leave the unpacked tables behind in the container's tmp.
+static constexpr size_t kMaxTemporaryPaths = 64;
+static char gTemporaryPaths[kMaxTemporaryPaths][PATH_MAX];
+static int gTemporaryPathCount = 0;
+
+void RegisterTemporaryPath(const char* path) {
+    if (gTemporaryPathCount < kMaxTemporaryPaths && path && path[0]) {
+        std::strncpy(gTemporaryPaths[gTemporaryPathCount], path, PATH_MAX - 1);
+        gTemporaryPaths[gTemporaryPathCount][PATH_MAX - 1] = '\0';
+        ++gTemporaryPathCount;
+    }
+}
+
+void ResetTemporaryPaths() {
+    gTemporaryPathCount = 0;
+}
+
+void RemoveTemporaryPathsSignalSafe() {
+    for (int i = 0; i < gTemporaryPathCount; ++i) {
+        if (gTemporaryPaths[i][0]) {
+            ::unlink(gTemporaryPaths[i]);
+        }
+    }
+}
+
+void HandleTerminationSignal(int) {
+    RemoveTemporaryPathsSignalSafe();
+    _exit(0);
+}
 
 bool ReadUInt32(NSData* data, NSUInteger offset, uint32_t& value) {
     if (offset > data.length || data.length - offset < sizeof(value)) return false;
@@ -183,6 +217,7 @@ void RemovePlatformTableTemporaryFile() {
         [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
     }
     gPlatformTableTemporaryFiles = nil;
+    ResetTemporaryPaths();
 }
 
 void PreparePlatformTableOverride(NSString* gameRoot) {
@@ -254,6 +289,7 @@ void PreparePlatformTableOverride(NSString* gameRoot) {
                 iosName.substr(iosPrefix.size() + 1).c_str()]];
         if (![desktopTable writeToFile:temporaryPath atomically:YES]) continue;
         chmod(temporaryPath.fileSystemRepresentation, S_IRUSR | S_IWUSR);
+        RegisterTemporaryPath(temporaryPath.fileSystemRepresentation);
         [gPlatformTableTemporaryFiles addObject:temporaryPath];
         PlatformTableOverrides()[iosName] = temporaryPath.fileSystemRepresentation;
     }
@@ -566,7 +602,12 @@ extern "C" void ArtemisSetGameRoot(const char* path) {
         GameRoot() = path ?: "";
     }
     static std::once_flag cleanupRegistration;
-    std::call_once(cleanupRegistration, [] { std::atexit(RemovePlatformTableTemporaryFile); });
+    std::call_once(cleanupRegistration, [] {
+        std::atexit(RemovePlatformTableTemporaryFile);
+        std::signal(SIGTERM, HandleTerminationSignal);
+        std::signal(SIGINT, HandleTerminationSignal);
+        std::signal(SIGHUP, HandleTerminationSignal);
+    });
 }
 
 extern "C" NSArray<NSString*>* YoghourtPathForDirectoriesInDomains(
