@@ -1,10 +1,16 @@
 #import <Cocoa/Cocoa.h>
 #import "AppDelegate.h"
+#import "EAGLContext.h"
 #import "NativeIOTrace.h"
 #include "ArtemisStatic.h"
 
 int main(int argc, char* argv[]) {
     @autoreleasepool {
+        for (int i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "--renderer-self-test") == 0) {
+                return YoghourtRunArtemisRendererSelfTest();
+            }
+        }
         NSString* gameRoot = nil;
         BOOL fullscreen = NO;
         for (int i = 1; i < argc; i++) {

@@ -17,6 +17,7 @@ typedef NS_ENUM(NSUInteger, EAGLRenderingAPI) {
 - (instancetype)initWithAPI:(EAGLRenderingAPI)api sharegroup:(void*)sharegroup;
 + (BOOL)setCurrentContext:(EAGLContext*)context;
 + (EAGLContext*)currentContext;
++ (void)shutdownSpatialPresentation;
 - (BOOL)presentRenderbuffer:(NSUInteger)target;
 - (BOOL)renderbufferStorage:(NSUInteger)target fromDrawable:(id<EAGLDrawable>)drawable;
 - (void)registerEngineFramebuffer:(unsigned int)framebuffer
@@ -24,6 +25,14 @@ typedef NS_ENUM(NSUInteger, EAGLRenderingAPI) {
                               size:(CGSize)size;
 @property (class, readonly) EAGLContext* currentContext;
 @end
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+int YoghourtRunArtemisRendererSelfTest(void);
+#ifdef __cplusplus
+}
+#endif
 #else
 #error "EAGLContext requires Objective-C"
 #endif

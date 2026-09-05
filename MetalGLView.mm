@@ -1,6 +1,7 @@
 #import "MetalGLView.h"
 #import "EAGLContext.h"
 #include "ArtemisStatic.h"
+#include <cstring>
 #define GL_APICALL
 #define GL_APIENTRY
 #include <GLES2/gl2.h>
@@ -20,6 +21,11 @@
 }
 - (void)drawFrame;
 @end
+
+static bool ArtemisRendererDebugEnabled() {
+    const char *value = getenv("YOGHOURT_ARTEMIS_RENDERER_DEBUG");
+    return value && std::strcmp(value, "1") == 0;
+}
 
 @implementation MetalGLView
 
@@ -110,6 +116,11 @@
               framebuffer, renderbuffer, viewport[0], viewport[1], viewport[2], viewport[3],
               framebufferStatus, glGetError(),
               glGetString(GL_VENDOR), glGetString(GL_RENDERER));
+        const char *rendererName = (const char *)glGetString(GL_RENDERER);
+        if (!rendererName || !std::strstr(rendererName, "ANGLE Metal Renderer")) {
+            NSLog(@"[Yoghourt] ERROR renderer initialization failed: explicit ANGLE Metal backend unavailable");
+            return NO;
+        }
         if (framebuffer == 0 || framebufferStatus != GL_FRAMEBUFFER_COMPLETE) {
             NSLog(@"[Yoghourt] ERROR renderer initialization failed: incomplete framebuffer status=0x%x",
                   framebufferStatus);
@@ -150,7 +161,7 @@
     @autoreleasepool {
         static int frameCount = 0;
         frameCount++;
-        if (frameCount <= 3) {
+        if (ArtemisRendererDebugEnabled() && frameCount <= 3) {
             GLint framebuffer = 0, renderbuffer = 0, viewport[4] = {0, 0, 0, 0};
             glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
             glGetIntegerv(GL_RENDERBUFFER_BINDING, &renderbuffer);
@@ -163,7 +174,7 @@
         if (frameCount <= 5 || frameCount % 120 == 0) {
             NSLog(@"Frame %d, Execute=%d", frameCount, shouldStop);
         }
-        if (frameCount <= 3) {
+        if (ArtemisRendererDebugEnabled() && frameCount <= 3) {
             GLint framebuffer = 0, renderbuffer = 0, viewport[4] = {0, 0, 0, 0};
             GLint currentProgram = 0, scissorBox[4] = {0, 0, 0, 0};
             GLboolean colorMask[4] = {GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE};
@@ -228,6 +239,7 @@
 
 - (void)dealloc {
     [self stopAnimation];
+    [EAGLContext shutdownSpatialPresentation];
     _context = nil;
 }
 

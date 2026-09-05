@@ -12,6 +12,13 @@ if(NOT YOGHOURT_SPATIAL_PRESENTER_DIR OR
     message(FATAL_ERROR
         "Set YOGHOURT_SPATIAL_PRESENTER_DIR to RuntimeSupport/SpatialPresenter")
 endif()
+set(YOGHOURT_SURFACE_RELAY_DIR "" CACHE PATH
+    "Path to Yoghourt's shared SurfaceRelay sources")
+if(NOT YOGHOURT_SURFACE_RELAY_DIR OR
+   NOT EXISTS "${YOGHOURT_SURFACE_RELAY_DIR}/IOSurfaceRing.mm")
+    message(FATAL_ERROR
+        "Set YOGHOURT_SURFACE_RELAY_DIR to RuntimeSupport/SurfaceRelay")
+endif()
 
 # ANGLE — GLES2+EGL (Metal backend)
 set(ARTEMIS_SDK_DIR "" CACHE PATH "Directory containing the user-supplied native Artemis SDK libraries")
@@ -37,6 +44,9 @@ set(SOURCES
     PlatformStub.mm
     NativeIOTrace.mm
     "${YOGHOURT_SPATIAL_PRESENTER_DIR}/YoghourtSpatialPresenter.mm"
+    "${YOGHOURT_SPATIAL_PRESENTER_DIR}/YoghourtDockIcon.mm"
+    "${YOGHOURT_SURFACE_RELAY_DIR}/IOSurfaceRing.mm"
+    "${YOGHOURT_SURFACE_RELAY_DIR}/IOSurfaceRingComponentTest.mm"
 )
 
 # Artemis static library (patched for macOS)
@@ -66,6 +76,7 @@ add_dependencies(ArtemisPlayer artemis_static_native_io)
 target_include_directories(ArtemisPlayer PRIVATE
     "${CMAKE_SOURCE_DIR}"
     "${YOGHOURT_SPATIAL_PRESENTER_DIR}"
+    "${YOGHOURT_SURFACE_RELAY_DIR}"
     "${LIBS_DIR}"
     ${FREETYPE_INCLUDE_DIRS}
 )
@@ -79,6 +90,7 @@ target_link_libraries(ArtemisPlayer
     "-framework MetalFX"
     "-framework QuartzCore"
     "-framework AppKit"
+    "-framework ImageIO"
     "-framework Foundation"
     "-framework CoreVideo"
     "-framework AVFoundation"

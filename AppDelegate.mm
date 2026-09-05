@@ -1,4 +1,6 @@
 #import "AppDelegate.h"
+
+#import "YoghourtDockIcon.h"
 #import "MetalGLView.h"
 #import "UICompat.h"
 #include "ArtemisStatic.h"
@@ -94,7 +96,7 @@
     _window.title = gameTitle.length ? gameTitle : @"Artemis";
     NSString* iconPath = NSProcessInfo.processInfo.environment[@"YOGHOURT_GAME_ICON"];
     if (iconPath.length) {
-        NSImage* icon = [[NSImage alloc] initWithContentsOfFile:iconPath];
+        NSImage* icon = YoghourtLoadDockIcon(iconPath);
         if (icon) NSApp.applicationIconImage = icon;
     }
     [_window center];
