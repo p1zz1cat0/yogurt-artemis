@@ -45,6 +45,7 @@ set(SOURCES
     NativeIOTrace.mm
     "${YOGHOURT_SPATIAL_PRESENTER_DIR}/YoghourtSpatialPresenter.mm"
     "${YOGHOURT_SPATIAL_PRESENTER_DIR}/YoghourtDockIcon.mm"
+    "${YOGHOURT_SPATIAL_PRESENTER_DIR}/YoghourtWindowPresentation.mm"
     "${YOGHOURT_SURFACE_RELAY_DIR}/IOSurfaceRing.mm"
     "${YOGHOURT_SURFACE_RELAY_DIR}/IOSurfaceRingComponentTest.mm"
 )

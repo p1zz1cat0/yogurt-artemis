@@ -1,6 +1,7 @@
 #import "AppDelegate.h"
 
 #import "YoghourtDockIcon.h"
+#import "YoghourtWindowPresentation.h"
 #import "MetalGLView.h"
 #import "UICompat.h"
 #include "ArtemisStatic.h"
@@ -110,6 +111,8 @@
     [container addSubview:_view];
     [container layoutGameView];
     _window.contentView = container;
+    YoghourtConfigureGameWindow((__bridge void *)_window, nullptr);
+    if (_fullscreen) YoghourtSetGameWindowFullscreen(true);
 
     [_window makeKeyAndOrderFront:nil];
 
@@ -140,11 +143,6 @@
     std::fflush(stdout);
 
     [NSApp activateIgnoringOtherApps:YES];
-    if (_fullscreen) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self->_window toggleFullScreen:nil];
-        });
-    }
 }
 
 - (void)windowWillEnterFullScreen:(NSNotification*)notification {
