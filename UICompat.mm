@@ -234,7 +234,25 @@ static UIWindow* s_artemisKeyWindow = nil;
     NSFont* _font;
 }
 + (UIFont*)systemFontOfSize:(CGFloat)size { UIFont* f = [[UIFont alloc] init]; f->_font = [NSFont systemFontOfSize:size]; return f; }
-+ (UIFont*)fontWithName:(NSString*)name size:(CGFloat)size { UIFont* f = [[UIFont alloc] init]; f->_font = [NSFont fontWithName:name size:size]; return f; }
++ (UIFont*)fontWithName:(NSString*)name size:(CGFloat)size {
+    UIFont* f = [[UIFont alloc] init];
+    f->_font = [NSFont fontWithName:name size:size];
+    if (!f->_font) {
+        // Unknown family: a nil font draws no text. Use the system font, which
+        // cascades to a CJK face, and log each missing name once.
+        static NSMutableSet<NSString*>* s_reported;
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{ s_reported = [NSMutableSet set]; });
+        @synchronized (s_reported) {
+            if (![s_reported containsObject:name]) {
+                [s_reported addObject:name];
+                NSLog(@"[Yoghourt] font fallback requested=%@ used=%@", name, [NSFont systemFontOfSize:size].fontName);
+            }
+        }
+        f->_font = [NSFont systemFontOfSize:size];
+    }
+    return f;
+}
 - (CGFloat)ascender   { return [_font ascender]; }
 - (CGFloat)lineHeight { return [_font ascender] + fabs([_font descender]) + [_font leading]; }
 - (CGFloat)leading    { return [_font leading]; }
